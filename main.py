@@ -1,30 +1,21 @@
 from fastapi import FastAPI, UploadFile, File
-from pydantic import BaseModel
-import uuid
-
-app = FastAPI()
-
-class Note(BaseModel):
-    title: str
-    content: str
-
-notes_db = {}
-
-@app.get("/")
-def read_root():
-    return {"VaultMind": "API is live and private"}
-
-@app.post("/note")
-def create_note(note: Note):
-    note_id = str(uuid.uuid4())
-    notes_db[note_id] = note
-    return {"note_id": note_id, "message": "Note stored securely"}
-
-@app.get("/note/{note_id}")
-def get_note(note_id: str):
-    return notes_db.get(note_id, {"error": "Not found"})
+import requests
 
 @app.post("/summarize")
 async def summarize_file(file: UploadFile = File(...)):
     contents = await file.read()
-    return {"filename": file.filename, "summary": "Summary to be generated here"}
+    text = contents.decode("utf-8")
+
+    # Send to local Ollama
+    response = requests.post(
+        "http://localhost:11434/api/generate",
+        json={
+            "model": "11AMA2",
+            "prompt": f"Summarize the following text:\n\n{text}",
+            "stream": False
+        }
+    )
+
+    summary = response.json().get("response", "No summary generated.")
+    return {"filename": file.filename, "summary": summary}
+
